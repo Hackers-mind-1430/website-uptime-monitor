@@ -1,20 +1,17 @@
-from pydantic import BaseModel
-from datetime import datetime
+from pydantic import BaseModel, HttpUrl
+from typing import Optional
 
 
-class MonitorBase(BaseModel):
+class MonitorCreate(BaseModel):
     name: str
-    url: str
+    url: HttpUrl
+    expected_status: int = 200
+    check_interval: int = 5
+    email: Optional[str] = None
 
 
-class MonitorCreate(MonitorBase):
-    pass
-
-
-class MonitorRead(MonitorBase):
+class MonitorRead(MonitorCreate):
     id: int
-    status: str
-    last_checked: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True

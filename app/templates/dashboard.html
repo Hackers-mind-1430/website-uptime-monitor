@@ -1,25 +1,163 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard | Uptime Monitor{% endblock %}
-
 {% block content %}
-<div class="card">
-    <h1>Uptime Monitor Dashboard</h1>
-    <p>Monitor critical service availability across your stack.</p>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+    <h2>Website Dashboard</h2>
+
+    <a href="/add" class="btn btn-primary">
+        + Add Website
+    </a>
+
 </div>
 
-<div class="card">
-    <h2>Service Status</h2>
-    <ul class="status-list">
-        {% for service in service_status %}
-            <li class="status-item">
-                <span>{{ service.name }}</span>
-                <div>
-                    <span class="status-badge">{{ service.status }}</span>
-                    <span class="status-value" style="display:none;">{{ service.status }}</span>
-                </div>
-            </li>
-        {% endfor %}
-    </ul>
-</div>
+<table class="table table-bordered table-hover align-middle">
+
+<thead class="table-dark">
+
+<tr>
+
+<th>Name</th>
+
+<th>URL</th>
+
+<th>Status</th>
+
+<th>HTTP</th>
+
+<th>Response</th>
+
+<th>Last Checked</th>
+
+<th>Actions</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for monitor in monitors %}
+
+{% set check = latest_checks.get(monitor.id) %}
+
+<tr>
+
+<td>{{ monitor.name }}</td>
+
+<td>
+
+<a href="{{ monitor.url }}" target="_blank">
+
+{{ monitor.url }}
+
+</a>
+
+</td>
+
+<td>
+
+{% if check %}
+
+    {% if check.is_up %}
+
+        <span class="badge bg-success">
+
+        UP
+
+        </span>
+
+    {% else %}
+
+        <span class="badge bg-danger">
+
+        DOWN
+
+        </span>
+
+    {% endif %}
+
+{% else %}
+
+<span class="badge bg-secondary">
+
+Never Checked
+
+</span>
+
+{% endif %}
+
+</td>
+
+<td>
+
+{% if check %}
+
+{{ check.status_code or "-" }}
+
+{% else %}
+
+-
+
+{% endif %}
+
+</td>
+
+<td>
+
+{% if check %}
+
+{{ check.response_time }} sec
+
+{% else %}
+
+-
+
+{% endif %}
+
+</td>
+
+<td>
+
+{% if check %}
+
+{{ check.checked_at.strftime("%d %b %H:%M:%S") }}
+
+{% else %}
+
+-
+
+{% endif %}
+
+</td>
+
+<td>
+
+<a class="btn btn-success btn-sm"
+
+href="/check/{{ monitor.id }}">
+
+Check
+
+</a>
+
+<a class="btn btn-danger btn-sm"
+
+href="/delete/{{ monitor.id }}">
+
+Delete
+
+</a>
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
 {% endblock %}

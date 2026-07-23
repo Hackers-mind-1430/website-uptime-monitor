@@ -1,13 +1,9 @@
-from pydantic import BaseSettings
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
 
-class Settings(BaseSettings):
-    app_name: str = "Uptime Monitor"
-    debug: bool = True
-    database_url: str = "sqlite+aiosqlite:///./uptime_monitor.db"
-
-    class Config:
-        env_file = ".env"
-
-
-settings = Settings()
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./uptime_monitor.db")
+SECRET_KEY = os.getenv("SECRET_KEY")
+SMTP_EMAIL = os.getenv("SMTP_EMAIL")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")

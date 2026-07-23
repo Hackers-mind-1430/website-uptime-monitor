@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>Add Website</h2>
+
+<form method="post">
+
+<div class="mb-3">
+<label>Name</label>
+<input class="form-control" name="name" required>
+</div>
+
+<div class="mb-3">
+<label>URL</label>
+<input class="form-control" name="url" placeholder="https://example.com" required>
+</div>
+
+<div class="mb-3">
+<label>Expected Status</label>
+<input class="form-control" name="expected_status" value="200">
+</div>
+
+<div class="mb-3">
+<label>Check Interval (minutes)</label>
+<input class="form-control" name="check_interval" value="5">
+</div>
+
+<div class="mb-3">
+<label>Email</label>
+<input class="form-control" name="email">
+</div>
+
+<button class="btn btn-success">
+Save Website
+</button>
+
+<a href="/" class="btn btn-secondary">
+Cancel
+</a>
+
+</form>
+
+{% endblock %}
