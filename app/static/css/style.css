@@ -9,3 +9,7 @@ table {
 h2 {
     font-weight: bold;
 }
+
+.card {
+    border: none;
+}

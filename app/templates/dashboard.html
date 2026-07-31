@@ -3,161 +3,434 @@
 {% block content %}
 
 <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Website Dashboard</h2>
+        <p class="text-muted mb-0">Monitor uptime, response time, and alerts in one place.</p>
+    </div>
+    <a href="/add" class="btn btn-primary">+ Add Website</a>
+</div>
 
-    <h2>Website Dashboard</h2>
+{% if message %}
+<div class="alert alert-{{ message_type }} alert-dismissible fade show" role="alert">
+    {{ message }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{% endif %}
+<div class="row g-3 mb-4">
 
-    <a href="/add" class="btn btn-primary">
-        + Add Website
-    </a>
+
+<div class="col-md-3">
+
+<div class="card p-3">
+
+<h6>Total Websites</h6>
+
+<h2 id="total-count">
+{{ monitors|length }}
+</h2>
 
 </div>
 
-<table class="table table-bordered table-hover align-middle">
+</div>
 
-<thead class="table-dark">
 
-<tr>
 
-<th>Name</th>
+<div class="col-md-3">
 
-<th>URL</th>
+<div class="card p-3">
 
-<th>Status</th>
+<h6>🟢 Online</h6>
 
-<th>HTTP</th>
+<h2 id="up-count">
+{{ status_summary.up }}
+</h2>
 
-<th>Response</th>
+</div>
 
-<th>Last Checked</th>
+</div>
 
-<th>Actions</th>
 
-</tr>
 
-</thead>
+<div class="col-md-3">
 
-<tbody>
+<div class="card p-3">
+
+<h6>🔴 Offline</h6>
+
+<h2 id="down-count">
+{{ status_summary.down }}
+</h2>
+
+</div>
+
+</div>
+
+
+
+<div class="col-md-3">
+
+<div class="card p-3">
+
+<h6>Average Response</h6>
+
+<h2 id="avg-response">
+{{ avg_response }}s
+</h2>
+
+</div>
+
+</div>
+
+
+</div>
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-center mb-3">
+            <div class="col-auto">
+                <input type="text" class="form-control" name="query" placeholder="Search name or URL" value="{{ query }}">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-outline-primary">Search</button>
+            </div>
+        </form>
+        <canvas id="monitorChart" height="120"></canvas>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-bordered table-hover align-middle bg-white">
+        <thead class="table-dark">
+            <tr>
+                <th>Name</th>
+                <th>URL</th>
+                <th>Status</th>
+                <th>HTTP</th>
+                <th>Response</th>
+                <th>Last Checked</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="monitorTableBody">
 
 {% for monitor in monitors %}
 
 {% set check = latest_checks.get(monitor.id) %}
 
-<tr>
+<tr id="monitor-{{ monitor.id }}">
 
 <td>{{ monitor.name }}</td>
 
 <td>
-
 <a href="{{ monitor.url }}" target="_blank">
-
 {{ monitor.url }}
-
 </a>
-
 </td>
 
-<td>
+
+<td class="status-cell">
 
 {% if check %}
 
-    {% if check.is_up %}
+{% if check.is_up %}
+<span class="badge bg-success">
+🟢 UP
+</span>
 
-        <span class="badge bg-success">
+{% else %}
 
-        UP
+<span class="badge bg-danger">
+🔴 DOWN
+</span>
 
-        </span>
+{% endif %}
 
-    {% else %}
-
-        <span class="badge bg-danger">
-
-        DOWN
-
-        </span>
-
-    {% endif %}
 
 {% else %}
 
 <span class="badge bg-secondary">
-
-Never Checked
-
+⚪ Never Checked
 </span>
 
 {% endif %}
 
 </td>
 
-<td>
 
-{% if check %}
-
-{{ check.status_code or "-" }}
-
-{% else %}
-
--
-
-{% endif %}
-
+<td class="http-cell">
+{{ check.status_code if check else "-" }}
 </td>
 
-<td>
+
+<td class="response-cell">
 
 {% if check %}
-
 {{ check.response_time }} sec
-
 {% else %}
-
 -
-
 {% endif %}
 
 </td>
 
-<td>
+
+<td class="checked-cell">
 
 {% if check %}
-
-{{ check.checked_at.strftime("%d %b %H:%M:%S") }}
-
+{{ check.checked_at.strftime('%d %b %H:%M:%S') }}
 {% else %}
-
 -
-
 {% endif %}
 
 </td>
 
+
 <td>
 
-<a class="btn btn-success btn-sm"
+<a class="btn btn-info btn-sm"
+href="/monitor/{{ monitor.id }}">
+Details
+</a>
 
-href="/check/{{ monitor.id }}">
+<a class="btn btn-primary btn-sm me-1"
+   href="/monitor/{{ monitor.id }}">
+    Details
+</a>
 
-Check
-
+<a class="btn btn-success btn-sm me-1"
+   href="/check/{{ monitor.id }}">
+    Check
 </a>
 
 <a class="btn btn-danger btn-sm"
-
-href="/delete/{{ monitor.id }}">
-
-Delete
-
+   href="/delete/{{ monitor.id }}"
+   onclick="return confirm('Are you sure you want to delete this monitor?');">
+    Delete
 </a>
-
 </td>
+
 
 </tr>
 
 {% endfor %}
 
 </tbody>
+    </table>
+</div>
 
-</table>
+<nav aria-label="Page navigation" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% for page_number in range(1, total_pages + 1) %}
+        <li class="page-item {% if page_number == page %}active{% endif %}">
+            <a class="page-link" href="/?page={{ page_number }}&query={{ query }}">{{ page_number }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+</nav>
 
+<script>
+const chartData = JSON.parse('{{ chart_dataset | safe }}');
+const labels = chartData.map(item => item.monitor_name);
+const values = chartData.map(item => item.response_time);
+const colors = chartData.map(item => item.status === 'up' ? '#198754' : (item.status === 'down' ? '#dc3545' : '#6c757d'));
+
+const ctx = document.getElementById('monitorChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels,
+        datasets: [{
+            label: 'Latest Response Time (s)',
+            data: values,
+            backgroundColor: colors,
+            borderRadius: 8,
+        }],
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: { display: true, text: 'Seconds' },
+            },
+        },
+        plugins: {
+            legend: { display: false },
+        },
+    },
+});
+</script>
+<script>
+
+async function refreshDashboard(){
+
+    try{
+
+        const response = await fetch("/api/status");
+
+        const monitors = await response.json();
+
+
+        monitors.forEach(monitor => {
+
+
+            const row = document.getElementById(
+                `monitor-${monitor.id}`
+            );
+
+
+            if(!row){
+                return;
+            }
+
+
+            const statusCell =
+                row.querySelector(".status-cell");
+
+
+            const httpCell =
+                row.querySelector(".http-cell");
+
+
+            const responseCell =
+                row.querySelector(".response-cell");
+
+
+            const checkedCell =
+                row.querySelector(".checked-cell");
+
+
+
+            if(monitor.is_up === true){
+
+                statusCell.innerHTML =
+                `
+                <span class="badge bg-success">
+                🟢 UP
+                </span>
+                `;
+
+            }
+
+            else if(monitor.is_up === false){
+
+                statusCell.innerHTML =
+                `
+                <span class="badge bg-danger">
+                🔴 DOWN
+                </span>
+                `;
+
+            }
+
+            else{
+
+                statusCell.innerHTML =
+                `
+                <span class="badge bg-secondary">
+                ⚪ Never Checked
+                </span>
+                `;
+
+            }
+
+
+
+            httpCell.innerText =
+                monitor.status_code ?? "-";
+
+
+            responseCell.innerText =
+                monitor.response_time
+                ? monitor.response_time + " sec"
+                : "-";
+
+
+            checkedCell.innerText =
+                monitor.checked_at ?? "-";
+
+
+        });
+
+
+    }
+
+    catch(error){
+
+        console.error(
+            "Live update failed:",
+            error
+        );
+
+    }
+
+}
+
+
+
+refreshDashboard();
+
+
+setInterval(
+    refreshDashboard,
+    30000
+);
+
+async function refreshAnalytics(){
+
+    try{
+
+        const response =
+        await fetch("/api/analytics");
+
+
+        const data =
+        await response.json();
+
+
+        document.getElementById(
+            "total-count"
+        ).innerText =
+        data.total;
+
+
+        document.getElementById(
+            "up-count"
+        ).innerText =
+        data.up;
+
+
+        document.getElementById(
+            "down-count"
+        ).innerText =
+        data.down;
+
+
+        document.getElementById(
+            "avg-response"
+        ).innerText =
+        data.average_response + "s";
+
+
+    }
+
+    catch(error){
+
+        console.error(
+            "Analytics failed",
+            error
+        );
+
+    }
+
+}
+
+
+refreshAnalytics();
+
+
+setInterval(
+    refreshAnalytics,
+    30000
+);
+</script>
 {% endblock %}

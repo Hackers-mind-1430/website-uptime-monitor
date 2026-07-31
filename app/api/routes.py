@@ -1,23 +1,58 @@
+import json
+
+from app.models.alert import Alert
+from app.models.monitor import Monitor
+from app.models.health_check import HealthCheck
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.monitor import Monitor
 from app.models.health_check import HealthCheck
 from app.services.checker import check_website
+from app.services.reports import build_monitor_chart_dataset
+from app.services.scheduler import schedule_monitor_job, remove_monitor_job
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+PAGE_SIZE = 10
+
 
 @router.get("/")
-def dashboard(request: Request, db: Session = Depends(get_db)):
+def dashboard(
+    request: Request,
+    query: str = "",
+    page: int = 1,
+    message: str = "",
+    message_type: str = "success",
+    db: Session = Depends(get_db),
+):
+    page = max(page, 1)
+    monitors_query = db.query(Monitor)
 
-    monitors = db.query(Monitor).all()
+    if query:
+        search_term = f"%{query}%"
+        monitors_query = monitors_query.filter(
+            or_(
+                Monitor.name.ilike(search_term),
+                Monitor.url.ilike(search_term),
+            )
+        )
+
+    total_monitors = monitors_query.count()
+    total_pages = max(1, (total_monitors + PAGE_SIZE - 1) // PAGE_SIZE)
+    monitors = (
+        monitors_query.order_by(Monitor.created_at.desc())
+        .offset((page - 1) * PAGE_SIZE)
+        .limit(PAGE_SIZE)
+        .all()
+    )
 
     latest_checks = {}
+    chart_dataset = []
 
     for monitor in monitors:
         latest = (
@@ -26,19 +61,42 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
             .order_by(HealthCheck.checked_at.desc())
             .first()
         )
-
         latest_checks[monitor.id] = latest
+        chart_dataset.append(build_monitor_chart_dataset(db, monitor))
+
+    total_up = sum(1 for check in latest_checks.values() if check and check.is_up)
+    total_down = sum(1 for check in latest_checks.values() if check and not check.is_up)
+    total_never = total_monitors - len([check for check in latest_checks.values() if check])
+
+    response_values = [
+        check.response_time
+        for check in latest_checks.values()
+        if check and check.response_time is not None
+    ]
+    avg_response = round(sum(response_values) / len(response_values), 3) if response_values else 0.0
 
     return templates.TemplateResponse(
-        request=request,
-        name="dashboard.html",
-        context={
-            "request": request,
-            "title": "Website Uptime Monitor",
-            "monitors": monitors,
-            "latest_checks": latest_checks,
+    request=request,
+    name="dashboard.html",
+    context={
+        "request": request,
+        "title": "Website Uptime Monitor",
+        "monitors": monitors,
+        "latest_checks": latest_checks,
+        "page": page,
+        "total_pages": total_pages,
+        "query": query,
+        "message": message,
+        "message_type": message_type,
+        "status_summary": {
+            "up": total_up,
+            "down": total_down,
+            "unknown": total_never,
         },
-    )
+        "avg_response": avg_response,
+        "chart_dataset": json.dumps(chart_dataset),
+    },
+)
 
 
 @router.get("/add")
@@ -69,28 +127,307 @@ def add_monitor(
 
     db.add(monitor)
     db.commit()
+    db.refresh(monitor)
+    schedule_monitor_job(monitor)
 
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(
+        "/?message=Website+added+successfully&message_type=success",
+        status_code=303,
+    )
 
 
 @router.get("/check/{monitor_id}")
 def run_check(monitor_id: int, db: Session = Depends(get_db)):
-
     monitor = db.get(Monitor, monitor_id)
+    message = "Monitor not found"
+    message_type = "danger"
 
     if monitor:
-        check_website(db, monitor)
+        health_check = check_website(db, monitor)
+        status = "UP" if health_check.is_up else "DOWN"
+        message = f"Manual check completed: {monitor.name} is {status}."
+        message_type = "success" if health_check.is_up else "danger"
 
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(
+        f"/?message={message.replace(' ', '+')}&message_type={message_type}",
+        status_code=303,
+    )
 
-
-@router.get("/delete/{monitor_id}")
-def delete_monitor(monitor_id: int, db: Session = Depends(get_db)):
-
+@router.get("/monitor/{monitor_id}")
+def monitor_details(
+    monitor_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     monitor = db.get(Monitor, monitor_id)
 
-    if monitor:
-        db.delete(monitor)
-        db.commit()
+    if not monitor:
+        return RedirectResponse(
+            "/?message=Monitor+not+found&message_type=danger",
+            status_code=303,
+        )
 
-    return RedirectResponse("/", status_code=303)
+    checks = (
+        db.query(HealthCheck)
+        .filter(HealthCheck.monitor_id == monitor_id)
+        .order_by(HealthCheck.checked_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    total_checks = db.query(HealthCheck).filter(
+        HealthCheck.monitor_id == monitor_id
+    ).count()
+
+    successful_checks = db.query(HealthCheck).filter(
+        HealthCheck.monitor_id == monitor_id,
+        HealthCheck.is_up == True
+    ).count()
+
+    failed_checks = total_checks - successful_checks
+
+    uptime_percentage = (
+        round((successful_checks / total_checks) * 100, 2)
+        if total_checks > 0
+        else 0
+    )
+
+    response_times = [
+        check.response_time
+        for check in checks
+        if check.response_time is not None
+    ]
+
+    avg_response = (
+        round(sum(response_times) / len(response_times), 3)
+        if response_times
+        else 0
+    )
+
+    fastest_response = (
+        min(response_times)
+        if response_times
+        else 0
+    )
+
+    slowest_response = (
+        max(response_times)
+        if response_times
+        else 0
+    )
+
+    chart_data = {
+        "labels": [
+            check.checked_at.strftime("%d %b %H:%M")
+            for check in reversed(checks)
+        ],
+        "response_times": [
+            check.response_time
+            for check in reversed(checks)
+        ],
+        "statuses": [
+            "UP" if check.is_up else "DOWN"
+            for check in reversed(checks)
+        ],
+    }
+
+    return templates.TemplateResponse(
+        request=request,
+        name="monitor_details.html",
+        context={
+            "request": request,
+            "title": f"{monitor.name} Details",
+            "monitor": monitor,
+            "checks": checks,
+            "total_checks": total_checks,
+            "successful_checks": successful_checks,
+            "failed_checks": failed_checks,
+            "uptime_percentage": uptime_percentage,
+            "avg_response": avg_response,
+            "fastest_response": fastest_response,
+            "slowest_response": slowest_response,
+            "chart_data": json.dumps(chart_data),
+        },
+    )
+
+@router.get("/api/status")
+def dashboard_status(db: Session = Depends(get_db)):
+
+    monitors = db.query(Monitor).all()
+
+    data = []
+
+    for monitor in monitors:
+        latest = (
+            db.query(HealthCheck)
+            .filter(HealthCheck.monitor_id == monitor.id)
+            .order_by(HealthCheck.checked_at.desc())
+            .first()
+        )
+
+        data.append({
+            "id": monitor.id,
+            "name": monitor.name,
+            "is_up": latest.is_up if latest else None,
+            "status_code": latest.status_code if latest else None,
+            "response_time": latest.response_time if latest else None,
+            "checked_at": (
+                latest.checked_at.strftime("%d %b %H:%M:%S")
+                if latest else None
+            )
+        })
+
+    return data
+
+@router.get("/api/analytics")
+def dashboard_analytics(db: Session = Depends(get_db)):
+
+    monitors = db.query(Monitor).all()
+
+    total_monitors = len(monitors)
+
+    up = 0
+    down = 0
+    response_times = []
+
+    for monitor in monitors:
+
+        latest = (
+            db.query(HealthCheck)
+            .filter(
+                HealthCheck.monitor_id == monitor.id
+            )
+            .order_by(
+                HealthCheck.checked_at.desc()
+            )
+            .first()
+        )
+
+        if latest:
+
+            if latest.is_up:
+                up += 1
+            else:
+                down += 1
+
+            if latest.response_time:
+                response_times.append(
+                    latest.response_time
+                )
+
+
+    avg_response = (
+        round(
+            sum(response_times) /
+            len(response_times),
+            3
+        )
+        if response_times
+        else 0
+    )
+
+
+    return {
+        "total": total_monitors,
+        "up": up,
+        "down": down,
+        "average_response": avg_response
+    }
+
+
+@router.get("/alerts")
+def alert_history(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    alerts = (
+        db.query(Alert)
+        .order_by(Alert.created_at.desc())
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="alerts.html",
+        context={
+            "request": request,
+            "title": "Alert History",
+            "alerts": alerts,
+        },
+    )
+
+
+@router.get("/monitor/{monitor_id}")
+def monitor_details(
+    monitor_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    monitor = db.get(Monitor, monitor_id)
+
+    if not monitor:
+        return RedirectResponse(
+            "/?message=Monitor+not+found&message_type=danger",
+            status_code=303,
+        )
+
+    health_checks = (
+        db.query(HealthCheck)
+        .filter(HealthCheck.monitor_id == monitor.id)
+        .order_by(HealthCheck.checked_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    total_checks = len(health_checks)
+
+    successful_checks = sum(
+        1 for check in health_checks if check.is_up
+    )
+
+    failed_checks = sum(
+        1 for check in health_checks if not check.is_up
+    )
+
+    response_times = [
+        check.response_time
+        for check in health_checks
+        if check.response_time is not None
+    ]
+
+    average_response = (
+        round(sum(response_times) / len(response_times), 3)
+        if response_times
+        else 0.0
+    )
+
+    uptime_percentage = (
+        round((successful_checks / total_checks) * 100, 2)
+        if total_checks
+        else 0.0
+    )
+
+    alerts = (
+        db.query(Alert)
+        .filter(Alert.monitor_id == monitor.id)
+        .order_by(Alert.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        request=request,
+        name="monitor_details.html",
+        context={
+            "request": request,
+            "title": f"{monitor.name} - Monitor Details",
+            "monitor": monitor,
+            "health_checks": health_checks,
+            "alerts": alerts,
+            "total_checks": total_checks,
+            "successful_checks": successful_checks,
+            "failed_checks": failed_checks,
+            "average_response": average_response,
+            "uptime_percentage": uptime_percentage,
+        },
+    )
