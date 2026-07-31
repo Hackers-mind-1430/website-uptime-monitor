@@ -4,24 +4,6 @@ A full-stack website uptime monitoring and alerting system built with Python and
 
 The application monitors websites at scheduled intervals, records availability and response-time data, tracks historical health checks, and sends email alerts when monitored websites go down.
 
-## Features
-
-* Monitor multiple websites
-* Automated scheduled health checks
-* Manual website health checks
-* HTTP status-code monitoring
-* Response-time tracking
-* Uptime/down status tracking
-* Historical health-check records
-* Response-time analytics and charts
-* Email alerts for website failures
-* Website recovery detection
-* Create, edit, and delete monitors
-* SQLite database
-* Alembic database migrations
-* Automated test suite
-* Dashboard with monitoring statistics
-
 ## Tech Stack
 
 **Backend**
@@ -205,6 +187,3 @@ Do not commit:
 * Secret keys
 * Other private environment variables
 
-## License
-
-This project is available for educational and portfolio purposes.
