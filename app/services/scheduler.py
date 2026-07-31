@@ -72,3 +72,8 @@ def start_scheduler():
 def stop_scheduler():
     if scheduler.running:
         scheduler.shutdown(wait=False)
+
+
+def update_monitor_job(monitor: Monitor):
+    remove_monitor_job(monitor.id)
+    schedule_monitor_job(monitor)

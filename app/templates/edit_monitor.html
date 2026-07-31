@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2>Edit Monitor</h2>
+        <p class="text-muted mb-0">
+            Update the settings for {{ monitor.name }}.
+        </p>
+    </div>
+
+```
+<a href="/" class="btn btn-secondary">
+    Back to Dashboard
+</a>
+```
+
+</div>
+
+<div class="card">
+    <div class="card-body">
+
+```
+    <form method="post" action="/edit/{{ monitor.id }}">
+
+        <div class="mb-3">
+            <label for="name" class="form-label">
+                Monitor Name
+            </label>
+
+            <input
+                type="text"
+                class="form-control"
+                id="name"
+                name="name"
+                value="{{ monitor.name }}"
+                required
+            >
+        </div>
+
+        <div class="mb-3">
+            <label for="url" class="form-label">
+                Website URL
+            </label>
+
+            <input
+                type="url"
+                class="form-control"
+                id="url"
+                name="url"
+                value="{{ monitor.url }}"
+                required
+            >
+        </div>
+
+        <div class="mb-3">
+            <label for="expected_status" class="form-label">
+                Expected HTTP Status
+            </label>
+
+            <input
+                type="number"
+                class="form-control"
+                id="expected_status"
+                name="expected_status"
+                value="{{ monitor.expected_status or 200 }}"
+                min="100"
+                max="599"
+                required
+            >
+        </div>
+
+        <div class="mb-3">
+            <label for="check_interval" class="form-label">
+                Check Interval (minutes)
+            </label>
+
+            <input
+                type="number"
+                class="form-control"
+                id="check_interval"
+                name="check_interval"
+                value="{{ monitor.check_interval or 5 }}"
+                min="1"
+                required
+            >
+
+            <div class="form-text">
+                The website will be checked at this interval.
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <label for="email" class="form-label">
+                Alert Email
+            </label>
+
+            <input
+                type="email"
+                class="form-control"
+                id="email"
+                name="email"
+                value="{{ monitor.email or '' }}"
+                placeholder="you@example.com"
+            >
+
+            <div class="form-text">
+                Leave blank if you don't want email alerts.
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+
+            <button
+                type="submit"
+                class="btn btn-primary"
+            >
+                Save Changes
+            </button>
+
+            <a
+                href="/monitor/{{ monitor.id }}"
+                class="btn btn-outline-secondary"
+            >
+                Cancel
+            </a>
+
+        </div>
+
+    </form>
+
+</div>
+```
+
+</div>
+
+{% endblock %}

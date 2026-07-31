@@ -12,58 +12,13 @@
         </p>
     </div>
 
-    <a href="/" class="btn btn-outline-primary">
-        ← Dashboard
-    </a>
-</div>
-
-
-<!-- Current Status -->
-
-<div class="card mb-4">
-    <div class="card-body">
-
-        <div class="d-flex justify-content-between align-items-center">
-
-            <div>
-                <h5 class="mb-1">Current Status</h5>
-
-                {% if health_checks %}
-
-                    {% set latest = health_checks[0] %}
-
-                    {% if latest.is_up %}
-                        <span class="badge bg-success fs-6">
-                            🟢 UP
-                        </span>
-                    {% else %}
-                        <span class="badge bg-danger fs-6">
-                            🔴 DOWN
-                        </span>
-                    {% endif %}
-
-                {% else %}
-
-                    <span class="badge bg-secondary fs-6">
-                        NEVER CHECKED
-                    </span>
-
-                {% endif %}
-            </div>
-
-            <div class="text-end">
-
-                {% if health_checks %}
-                    <small class="text-muted">
-                        Last checked:
-                        {{ health_checks[0].checked_at.strftime('%d %b %Y %H:%M:%S') }}
-                    </small>
-                {% endif %}
-
-            </div>
-
-        </div>
-
+    <div>
+        <a href="/edit/{{ monitor.id }}" class="btn btn-primary me-2">
+            Edit Monitor
+        </a>
+        <a href="/" class="btn btn-outline-secondary">
+            Back
+        </a>
     </div>
 </div>
 
@@ -75,66 +30,39 @@
     <div class="col-md-3">
         <div class="card h-100">
             <div class="card-body">
-
-                <h6 class="text-muted">
-                    Uptime
-                </h6>
-
-                <h2>
-                    {{ uptime_percentage }}%
-                </h2>
-
+                <h6 class="text-muted">Uptime</h6>
+                <h2>{{ uptime_percentage }}%</h2>
             </div>
         </div>
     </div>
 
-
     <div class="col-md-3">
         <div class="card h-100">
             <div class="card-body">
-
-                <h6 class="text-muted">
-                    Average Response
-                </h6>
-
-                <h2>
-                    {{ average_response }}s
-                </h2>
-
+                <h6 class="text-muted">Total Checks</h6>
+                <h2>{{ total_checks }}</h2>
             </div>
         </div>
     </div>
 
-
     <div class="col-md-3">
         <div class="card h-100">
             <div class="card-body">
-
-                <h6 class="text-muted">
-                    Total Checks
-                </h6>
-
-                <h2>
-                    {{ total_checks }}
+                <h6 class="text-muted">Successful</h6>
+                <h2 class="text-success">
+                    {{ successful_checks }}
                 </h2>
-
             </div>
         </div>
     </div>
 
-
     <div class="col-md-3">
         <div class="card h-100">
             <div class="card-body">
-
-                <h6 class="text-muted">
-                    Failed Checks
-                </h6>
-
+                <h6 class="text-muted">Failed</h6>
                 <h2 class="text-danger">
                     {{ failed_checks }}
                 </h2>
-
             </div>
         </div>
     </div>
@@ -142,7 +70,41 @@
 </div>
 
 
-<!-- Response Time Chart -->
+<!-- Response statistics -->
+
+<div class="row g-3 mb-4">
+
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted">Average Response</h6>
+                <h3>{{ average_response }}s</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted">Fastest Response</h6>
+                <h3>{{ fastest_response }}s</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted">Slowest Response</h6>
+                <h3>{{ slowest_response }}s</h3>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+
+<!-- Response chart -->
 
 <div class="card mb-4">
 
@@ -152,7 +114,7 @@
             Response Time History
         </h5>
 
-        <div style="height: 300px;">
+        <div style="height: 350px;">
             <canvas id="responseChart"></canvas>
         </div>
 
@@ -161,7 +123,7 @@
 </div>
 
 
-<!-- Health Check History -->
+<!-- Health check history -->
 
 <div class="card mb-4">
 
@@ -171,8 +133,6 @@
             Health Check History
         </h5>
 
-        {% if health_checks %}
-
         <div class="table-responsive">
 
             <table class="table table-hover align-middle">
@@ -180,10 +140,10 @@
                 <thead class="table-dark">
 
                     <tr>
-                        <th>Time</th>
                         <th>Status</th>
                         <th>HTTP</th>
                         <th>Response</th>
+                        <th>Checked At</th>
                         <th>Error</th>
                     </tr>
 
@@ -196,22 +156,18 @@
                     <tr>
 
                         <td>
-                            {{ check.checked_at.strftime('%d %b %Y %H:%M:%S') }}
-                        </td>
-
-                        <td>
 
                             {% if check.is_up %}
 
-                                <span class="badge bg-success">
-                                    UP
-                                </span>
+                            <span class="badge bg-success">
+                                UP
+                            </span>
 
                             {% else %}
 
-                                <span class="badge bg-danger">
-                                    DOWN
-                                </span>
+                            <span class="badge bg-danger">
+                                DOWN
+                            </span>
 
                             {% endif %}
 
@@ -222,31 +178,45 @@
                         </td>
 
                         <td>
-
                             {% if check.response_time is not none %}
                                 {{ check.response_time }} sec
                             {% else %}
                                 -
                             {% endif %}
+                        </td>
 
+                        <td>
+                            {% if check.checked_at %}
+                                {{ check.checked_at.strftime("%d %b %Y %H:%M:%S") }}
+                            {% else %}
+                                -
+                            {% endif %}
                         </td>
 
                         <td>
 
                             {% if check.error_message %}
 
-                                <span class="text-danger">
-                                    {{ check.error_message }}
-                                </span>
+                            <span class="text-danger">
+                                {{ check.error_message }}
+                            </span>
 
                             {% else %}
 
-                                -
+                            -
 
                             {% endif %}
 
                         </td>
 
+                    </tr>
+
+                    {% else %}
+
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">
+                            No health checks recorded yet.
+                        </td>
                     </tr>
 
                     {% endfor %}
@@ -257,212 +227,63 @@
 
         </div>
 
-        {% else %}
-
-        <p class="text-muted mb-0">
-            No health checks have been recorded yet.
-        </p>
-
-        {% endif %}
-
     </div>
 
 </div>
 
-
-<!-- Alert History -->
-
-<div class="card mb-4">
-
-    <div class="card-body">
-
-        <h5 class="card-title mb-3">
-            Alert History
-        </h5>
-
-        {% if alerts %}
-
-        <div class="table-responsive">
-
-            <table class="table table-hover align-middle">
-
-                <thead class="table-dark">
-
-                    <tr>
-                        <th>Event</th>
-                        <th>HTTP</th>
-                        <th>Response</th>
-                        <th>Error</th>
-                        <th>Time</th>
-                    </tr>
-
-                </thead>
-
-                <tbody>
-
-                    {% for alert in alerts %}
-
-                    <tr>
-
-                        <td>
-
-                            {% if alert.is_up %}
-
-                                <span class="badge bg-success">
-                                    🟢 RECOVERED
-                                </span>
-
-                            {% else %}
-
-                                <span class="badge bg-danger">
-                                    🔴 DOWN
-                                </span>
-
-                            {% endif %}
-
-                        </td>
-
-                        <td>
-                            {{ alert.status_code or "-" }}
-                        </td>
-
-                        <td>
-
-                            {% if alert.response_time is not none %}
-                                {{ alert.response_time }} sec
-                            {% else %}
-                                -
-                            {% endif %}
-
-                        </td>
-
-                        <td>
-
-                            {% if alert.error_message %}
-                                <span class="text-danger">
-                                    {{ alert.error_message }}
-                                </span>
-                            {% else %}
-                                -
-                            {% endif %}
-
-                        </td>
-
-                        <td>
-
-                            {% if alert.created_at %}
-                                {{ alert.created_at.strftime('%d %b %Y %H:%M:%S') }}
-                            {% else %}
-                                -
-                            {% endif %}
-
-                        </td>
-
-                    </tr>
-
-                    {% endfor %}
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-        {% else %}
-
-        <p class="text-muted mb-0">
-            No alerts recorded for this monitor.
-        </p>
-
-        {% endif %}
-
-    </div>
-
-</div>
-
-
-<script id="health-check-data" type="application/json">
-{{ chart_data | tojson }}
+<script id="chart-data" type="application/json">
+{{ chart_data | safe }}
 </script>
 
 <script>
-
-const healthChecks = JSON.parse(
-    document.getElementById("health-check-data").textContent
+const chartData = JSON.parse(
+    document.getElementById("chart-data").textContent
 );
 
-const chartLabels = healthChecks.map(
-    check => check.time
-);
-
-const chartValues = healthChecks.map(
-    check => check.response
-);
+const chartLabels = chartData.labels;
+const chartValues = chartData.response_times;
 
 const ctx = document
     .getElementById("responseChart")
     .getContext("2d");
 
 new Chart(ctx, {
-
     type: "line",
 
     data: {
-
         labels: chartLabels,
 
         datasets: [{
-
             label: "Response Time (seconds)",
-
             data: chartValues,
-
             tension: 0.3,
-
             fill: false,
-
             borderWidth: 2,
-
             pointRadius: 3
-
         }]
-
     },
 
     options: {
-
         responsive: true,
-
         maintainAspectRatio: false,
 
         scales: {
-
             y: {
-
                 beginAtZero: true,
-
                 title: {
                     display: true,
                     text: "Seconds"
                 }
-
             },
 
             x: {
-
                 title: {
                     display: true,
                     text: "Time"
                 }
-
             }
-
         }
-
     }
-
 });
-
 </script>
-
 {% endblock %}

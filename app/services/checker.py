@@ -1,5 +1,5 @@
 import time
-from app.models.alert import Alert
+
 import httpx
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,7 @@ def check_website(db: Session, monitor: Monitor):
         )
 
         response_time = round(time.perf_counter() - start_time, 3)
+
         is_up = response.status_code == monitor.expected_status
 
         health_check = HealthCheck(
@@ -35,56 +36,70 @@ def check_website(db: Session, monitor: Monitor):
             response_time=response_time,
             error_message=None,
         )
-    except Exception as exc:
+
+    except httpx.TimeoutException:
         response_time = round(time.perf_counter() - start_time, 3)
+
         health_check = HealthCheck(
             monitor_id=monitor.id,
             is_up=False,
             status_code=None,
             response_time=response_time,
-            error_message=str(exc),
+            error_message="Request timed out after 10 seconds.",
+        )
+
+    except httpx.ConnectError as exc:
+        response_time = round(time.perf_counter() - start_time, 3)
+
+        health_check = HealthCheck(
+            monitor_id=monitor.id,
+            is_up=False,
+            status_code=None,
+            response_time=response_time,
+            error_message=f"Connection failed: {str(exc)}",
+        )
+
+    except httpx.HTTPError as exc:
+        response_time = round(time.perf_counter() - start_time, 3)
+
+        health_check = HealthCheck(
+            monitor_id=monitor.id,
+            is_up=False,
+            status_code=None,
+            response_time=response_time,
+            error_message=f"HTTP error: {str(exc)}",
+        )
+
+    except Exception as exc:
+        response_time = round(time.perf_counter() - start_time, 3)
+
+        health_check = HealthCheck(
+            monitor_id=monitor.id,
+            is_up=False,
+            status_code=None,
+            response_time=response_time,
+            error_message=f"Unexpected error: {str(exc)}",
         )
 
     db.add(health_check)
     db.commit()
     db.refresh(health_check)
 
-    if previous_check and previous_check.is_up != health_check.is_up:
-        alert = Alert(
-            monitor_id=monitor.id,
-            is_up=health_check.is_up,
-            status_code=health_check.status_code,
-            response_time=health_check.response_time,
-            error_message=health_check.error_message,
+    if monitor.email:
+        status_changed = (
+            previous_check
+            and previous_check.is_up != health_check.is_up
         )
 
-        db.add(alert)
-        db.commit()
+        first_failed_check = (
+            previous_check is None
+            and not health_check.is_up
+        )
 
-        if monitor.email:
+        if status_changed or first_failed_check:
             send_email_alert(
                 monitor,
                 health_check.is_up,
-                health_check.status_code,
-                health_check.response_time,
-                health_check.error_message,
-            )
-    elif previous_check is None and not health_check.is_up:
-        alert = Alert(
-            monitor_id=monitor.id,
-            is_up=False,
-            status_code=health_check.status_code,
-            response_time=health_check.response_time,
-            error_message=health_check.error_message,
-        )
-
-        db.add(alert)
-        db.commit()
-
-        if monitor.email:
-            send_email_alert(
-                monitor,
-                False,
                 health_check.status_code,
                 health_check.response_time,
                 health_check.error_message,
