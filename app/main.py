@@ -1,15 +1,11 @@
 from pathlib import Path
-
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-
 from app.api.routes import router
 from app.core.database import Base, engine
 from app.models.health_check import HealthCheck
-from app.models.monitor import Monitor
 from app.services.scheduler import start_scheduler, stop_scheduler
 from app.models.monitor import Monitor
-from app.models.health_check import HealthCheck
 from app.models.alert import Alert
 
 ROOT_DIR = Path(__file__).resolve().parent
